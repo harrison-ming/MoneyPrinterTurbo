@@ -8,6 +8,9 @@ from loguru import logger
 from openai import AzureOpenAI, OpenAI
 from openai.types.chat import ChatCompletion
 
+from app.exceptions import LLMResponseValidationError
+from typing import List, Dict, Any
+
 from app.config import config
 
 _max_retries = 5
@@ -259,6 +262,58 @@ def _generate_response(prompt: str) -> str:
         return f"Error: {str(e)}"
 
 
+def _generate_response(messages: List[Dict[str, str]], response_format: str = "json_object") -> any:
+        """生成 LLM 响应
+
+        Args:
+            messages: 消息列表
+            response_format: 响应格式，默认为 json_object
+
+        Returns:
+            Dict[str, Any]: 解析后的响应
+
+        Raises:
+            Exception: 请求失败或解析失败时抛出异常
+        """
+        llm_provider = config.app.get("llm_provider", "openai")
+        logger.info(f"llm provider: {llm_provider}")
+        api_key = config.app.get("openai_api_key")
+        model_name = config.app.get("openai_model_name")
+        base_url = config.app.get("openai_base_url", "")
+        if not base_url:
+            base_url = "https://api.openai.com/v1"
+
+        if not api_key:
+            raise ValueError(
+                f"{llm_provider}: api_key is not set, please set it in the config.toml file."
+            )
+        if not model_name:
+            raise ValueError(
+                f"{llm_provider}: model_name is not set, please set it in the config.toml file."
+            )
+        if not base_url:
+            raise ValueError(
+                f"{llm_provider}: base_url is not set, please set it in the config.toml file."
+            )
+            
+        client = OpenAI(
+            api_key=api_key,
+            base_url=base_url,
+        )
+        response = client.chat.completions.create(
+            model= model_name,
+            response_format={"type": response_format},
+            messages=messages,
+        )
+        try:
+            content = response.choices[0].message.content
+            result = json.loads(content)
+            return result
+        except Exception as e:
+            logger.error(f"Failed to parse response: {e}")
+            raise e
+        
+
 def generate_script(
     video_subject: str, language: str = "", paragraph_number: int = 1
 ) -> str:
@@ -395,6 +450,229 @@ Please note that you must use English for generating video search terms; Chinese
 
     logger.success(f"completed: \n{search_terms}")
     return search_terms
+
+
+def generate_story(story: str, language: str, segments: int) -> List[Dict[str, Any]]:
+        """生成故事场景
+        Args:
+            story_prompt (str, optional): 故事提示. Defaults to None.
+            segments (int, optional): 故事分段数. Defaults to 3.
+
+        Returns:
+            List[Dict[str, Any]]: 故事场景列表
+        """
+        
+        messages = [
+            {"role": "system", "content": "你是一个专业的故事创作者，善于创作引人入胜的故事。请只返回JSON格式的内容。"},
+            {"role": "user", "content": _get_story_prompt(story, language, segments)}
+        ]
+        logger.info(f"prompt messages: {json.dumps(messages, indent=4, ensure_ascii=False)}")
+        response = _generate_response(messages=messages, response_format="json_object")
+        response = response["list"]
+        response = normalize_keys(response)
+
+        logger.info(f"Generated story: {json.dumps(response, indent=4, ensure_ascii=False)}")
+        # 验证响应格式
+        _validate_story_response(response)
+        
+        return response
+
+
+def normalize_keys(data):
+        """
+        阿里云和 openai 的模型返回结果不一致，处理一下
+        修改对象中非 `text` 的键为 `image_prompt`
+        - 如果是字典，替换 `text` 以外的单个键为 `image_prompt`
+        - 如果是列表，对列表中的每个对象递归处理
+        """
+        if isinstance(data, dict):
+            # 如果是字典，处理键值
+            if "text" in data:
+                # 找到非 `text` 的键
+                other_keys = [key for key in data.keys() if key != "text"]
+                # 确保只处理一个非 `text` 键的情况
+                if len(other_keys) == 1:
+                    data["image_prompt"] = data.pop(other_keys[0])
+                elif len(other_keys) > 1:
+                    raise ValueError(f"Unexpected extra keys: {other_keys}. Only one non-'text' key is allowed.")
+            return data
+        elif isinstance(data, list):
+            # 如果是列表，递归处理每个对象
+            return [normalize_keys(item) for item in data]
+        else:
+            raise TypeError("Input must be a dict or list of dicts")
+
+
+def generate_image(prompt: str, resolution: str = "1024x1024") -> str:
+        # return "https://dashscope-result-bj.oss-cn-beijing.aliyuncs.com/1d/56/20250118/3c4cc727/4fc622b5-54a6-484c-bf1f-f1cfb66ace2d-1.png?Expires=1737290655&OSSAccessKeyId=LTAI5tQZd8AEcZX6KZV4G8qL&Signature=W8D4CN3uonQ2pL1e9xGMWufz33E%3D"
+        """生成图片
+
+        Args:
+            prompt (str): 图片描述
+            resolution (str): 图片分辨率，默认为 1024x1024
+
+        Returns:
+            str: 图片URL
+        """
+
+
+        try:
+            # 添加安全提示词
+            safe_prompt = f"Create a safe, family-friendly illustration. {prompt} The image should be appropriate for all ages, non-violent, and non-controversial."
+            if (resolution != None):
+                resolution = resolution.replace("*", "x")
+
+            llm_provider = config.app.get("llm_provider", "openai")
+            image_llm_model = config.app.get("image_llm_model", "dall-e-3")
+            logger.info(f"llm provider: {llm_provider}")
+            api_key = config.app.get("openai_api_key")
+            model_name = config.app.get("openai_model_name")
+            base_url = config.app.get("openai_base_url", "")
+            if not base_url:
+                base_url = "https://api.openai.com/v1"
+
+            if not api_key:
+                raise ValueError(
+                    f"{llm_provider}: api_key is not set, please set it in the config.toml file."
+                )
+            if not model_name:
+                raise ValueError(
+                    f"{llm_provider}: model_name is not set, please set it in the config.toml file."
+                )
+            if not base_url:
+                raise ValueError(
+                    f"{llm_provider}: base_url is not set, please set it in the config.toml file."
+                )
+                
+            client = OpenAI(
+                api_key=api_key,
+                base_url=base_url,
+            )
+            response = client.images.generate(
+                model=image_llm_model,
+                prompt=safe_prompt,
+                size=resolution,
+                quality="standard",
+                n=1
+            )
+            logger.info("image generate res", response.data[0].url)
+            return response.data[0].url
+        except Exception as e:
+            logger.error(f"Failed to generate image: {e}")
+            return ""
+
+
+def generate_story_with_images(story: str, language: str, segments: int, resolution: str) -> List[Dict[str, Any]]:
+        """生成故事和配图
+        Args:
+            story (str, optional): 故事. Defaults to None.
+            language (Language, optional): 语言. Defaults to Language.CHINESE.
+            segments (int, optional): 故事分段数. Defaults to 3.
+            resolution (str, optional): 图片分辨率. Defaults to "1024x1024".
+
+        Returns:
+            List[Dict[str, Any]]: 故事场景列表，每个场景包含文本、图片提示词和图片URL
+        """
+        # 先生成故事
+        story_segments = generate_story(
+            story=story, language=language, segments=segments
+        )
+
+        # 为每个场景生成图片
+        for segment in story_segments:
+            try:
+                image_url = generate_image(prompt=segment["image_prompt"], resolution=resolution)
+                segment["url"] = image_url
+            except Exception as e:
+                logger.error(f"Failed to generate image for segment: {e}")
+                segment["url"] = None
+
+        return story_segments
+
+
+def _validate_story_response(response: any) -> None:
+        """验证故事生成响应
+
+        Args:
+            response: LLM 响应
+
+        Raises:
+            LLMResponseValidationError: 响应格式错误
+        """
+        if not isinstance(response, list):
+            raise LLMResponseValidationError("Response must be an array")
+
+        for i, scene in enumerate(response):
+            if not isinstance(scene, dict):
+                raise LLMResponseValidationError(f"story item {i} must be an object")
+            
+            if "text" not in scene:
+                raise LLMResponseValidationError(f"Scene {i} missing 'text' field")
+            
+            if "image_prompt" not in scene:
+                raise LLMResponseValidationError(f"Scene {i} missing 'image_prompt' field")
+            
+            if not isinstance(scene["text"], str):
+                raise LLMResponseValidationError(f"Scene {i} 'text' must be a string")
+            
+            if not isinstance(scene["image_prompt"], str):
+                raise LLMResponseValidationError(f"Scene {i} 'image_prompt' must be a string")
+
+
+def _get_story_prompt(story: str = None, language: str = "中文（简体）", segments: int = 3) -> str:
+        """生成故事提示词
+
+        Args:
+            story (str, optional): 故事. Defaults to None.
+            segments (int, optional): 故事分段数. Defaults to 3.
+
+        Returns:
+            str: 完整的提示词
+        """
+
+        # if story_prompt:
+        base_prompt = f"有以下故事：{story}"
+        
+        return f"""
+        {base_prompt}. The story needs to be divided into {segments} scenes, and each scene must include descriptive text and an image prompt.
+
+        Please return the result in the following JSON format, where the key `list` contains an array of objects:
+
+        **Expected JSON format**:
+        {{
+            "list": [
+                {{
+                    "text": "Descriptive text for the scene",
+                    "image_prompt": "Detailed image generation prompt, described in English"
+                }},
+                {{
+                    "text": "Another scene description text",
+                    "image_prompt": "Another detailed image generation prompt in English"
+                }}
+            ]
+        }}
+
+        **Requirements**:
+        1. The root object must contain a key named `list`, and its value must be an array of scene objects.
+        2. Each object in the `list` array must include:
+            - `text`: A descriptive text for the scene, written in {language}.
+            - `image_prompt`: A detailed prompt for generating an image, written in English.
+        3. Ensure the JSON format matches the above example exactly. Avoid extra fields or incorrect key names like `cimage_prompt` or `inage_prompt`.
+
+        **Important**:
+        - If there is only one scene, the array under `list` should contain a single object.
+        - The output must be a valid JSON object. Do not include explanations, comments, or additional content outside the JSON.
+
+        Example output:
+        {{
+            "list": [
+                {{
+                    "text": "Scene description text",
+                    "image_prompt": "Detailed image generation prompt in English"
+                }}
+            ]
+        }}
+        """
 
 
 if __name__ == "__main__":

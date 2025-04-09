@@ -1,13 +1,14 @@
 import math
 import os.path
 import re
+import requests
 from os import path
 
 from loguru import logger
 
 from app.config import config
 from app.models import const
-from app.models.schema import VideoConcatMode, VideoParams
+from app.models.schema import VideoConcatMode, VideoParams, MaterialInfo
 from app.services import llm, material, subtitle, video, voice
 from app.services import state as sm
 from app.utils import utils
@@ -121,6 +122,31 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
         return ""
 
     return subtitle_path
+
+
+def get_images_for_story_and_update_video_materials(task_id: str, params: VideoParams):
+    # if video_materials is empty, generate images for the story
+    materials = []
+    if not params.video_materials:
+        story_list = llm.generate_story_with_images(story=params.story, language=params.language, 
+                                                    segments=params.segments, resolution=params.resolution)
+        for i, scene in enumerate(story_list, 1):
+            if scene.get("url"):     
+                image_path = path.join(utils.task_dir(task_id), f"{i}.png")
+                try:
+                    response = requests.get(scene["url"])
+                    if response.status_code == 200:
+                        with open(image_path, "wb") as f:
+                            f.write(response.content)
+                        logger.info(f"Downloaded image {i} to {image_path}")
+                        item = MaterialInfo(
+                            url=image_path,
+                        )
+                        materials.append(item)
+                except Exception as e:
+                    logger.error(f"Failed to download image {i}: {e}")
+    
+    return materials
 
 
 def get_video_materials(task_id, params, video_terms, audio_duration):
@@ -280,6 +306,9 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         return {"subtitle_path": subtitle_path}
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=40)
+
+    # 4.9 generate video clips
+    get_images_for_story_and_update_video_materials(task_id, params)
 
     # 5. Get video materials
     downloaded_videos = get_video_materials(
