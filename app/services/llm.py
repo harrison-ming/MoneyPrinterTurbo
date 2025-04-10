@@ -262,7 +262,7 @@ def _generate_response(prompt: str) -> str:
         return f"Error: {str(e)}"
 
 
-def _generate_response(messages: List[Dict[str, str]], response_format: str = "json_object") -> any:
+def _generate_story_response(messages: List[Dict[str, str]], response_format: str = "json_object") -> any:
         """生成 LLM 响应
 
         Args:
@@ -467,7 +467,7 @@ def generate_story(story: str, language: str, segments: int) -> List[Dict[str, A
             {"role": "user", "content": _get_story_prompt(story, language, segments)}
         ]
         logger.info(f"prompt messages: {json.dumps(messages, indent=4, ensure_ascii=False)}")
-        response = _generate_response(messages=messages, response_format="json_object")
+        response = _generate_story_response(messages=messages, response_format="json_object")
         response = response["list"]
         response = normalize_keys(response)
 
