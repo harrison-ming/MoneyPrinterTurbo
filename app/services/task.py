@@ -126,10 +126,10 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
 
 def get_images_for_story_and_update_video_materials(task_id: str, params: VideoParams):
     # if video_materials is empty, generate images for the story
-    materials = []
     if not params.video_materials:
         story_list = llm.generate_story_with_images(story=params.story, language=params.language, 
                                                     segments=params.segments, resolution=params.resolution)
+        materials = []
         for i, scene in enumerate(story_list, 1):
             if scene.get("url"):     
                 image_path = path.join(utils.task_dir(task_id), f"{i}.png")
@@ -145,8 +145,8 @@ def get_images_for_story_and_update_video_materials(task_id: str, params: VideoP
                         materials.append(item)
                 except Exception as e:
                     logger.error(f"Failed to download image {i}: {e}")
-    
-    return materials
+        
+        params.video_materials = materials
 
 
 def get_video_materials(task_id, params, video_terms, audio_duration):
