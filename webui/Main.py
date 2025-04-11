@@ -506,6 +506,7 @@ with middle_panel:
             (tr("Random"), "random"),
         ]
         video_sources = [
+            (tr("AI"), "ai"),
             (tr("Pexels"), "pexels"),
             (tr("Pixabay"), "pixabay"),
             (tr("Local file"), "local"),

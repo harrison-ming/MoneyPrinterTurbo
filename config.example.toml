@@ -1,6 +1,6 @@
 [app]
 
-    video_source = "pexels"  # "pexels" or "pixabay"
+    video_source = "pexels"  # "pexels" or "pixabay" or "ai"
     # Pexels API Key
     # Register at https://www.pexels.com/api/ to get your API key.
     # You can use multiple keys to avoid rate limits.
