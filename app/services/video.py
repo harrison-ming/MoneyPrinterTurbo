@@ -60,8 +60,9 @@ def combine_videos(
     audio_duration = audio_clip.duration
     logger.info(f"max duration of audio: {audio_duration} seconds")
     # Required duration of each clip
-    req_dur = audio_duration / len(video_paths)
-    req_dur = max_clip_duration
+    # req_dur = audio_duration / len(video_paths)
+    # req_dur = max_clip_duration
+    req_dur = min(audio_duration, max_clip_duration)
     logger.info(f"each clip will be maximum {req_dur} seconds long")
     output_dir = os.path.dirname(combined_video_path)
 

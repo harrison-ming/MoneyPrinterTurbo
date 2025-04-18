@@ -103,10 +103,10 @@ class VideoParams(BaseModel):
     stroke_width: float = 1.5
     n_threads: Optional[int] = 2
     paragraph_number: Optional[int] = 1
-    story: str = ""
     language: str = "中文（简体）"
     segments: int = 3
     resolution: str = "1024*1024"
+    script_segments: list[dict[str, str]] = []
 
 
 class SubtitleRequest(BaseModel):
