@@ -293,6 +293,8 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
     subtitle_paths = []
     downloaded_videos = []
     video_scripts = []
+    
+    video_terms = ""
 
     # 1. Generate script
     script_segments = params.script_segments
@@ -311,7 +313,6 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
             return {"script": video_script}
 
         # 2. Generate terms
-        video_terms = ""
         if params.video_source != "local":
             video_terms = generate_terms(task_id, params, video_script)
             if not video_terms:
