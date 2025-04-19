@@ -78,6 +78,9 @@ def save_script_data(task_id, video_script, video_terms, params):
 def generate_audio(task_id, params, video_script, index):
     logger.info("\n\n## generating audio")
     audio_file = path.join(utils.task_dir(task_id), f"audio-{index}.mp3")
+    logger.info(
+        f"audio file: {audio_file}, voice name: {params.voice_name}, voice rate: {params.voice_rate}, video script: {video_script}"
+    )
     sub_maker = voice.tts(
         text=video_script,
         voice_name=voice.parse_voice_name(params.voice_name),
@@ -339,7 +342,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         logger.info(f"script segments exists, skipping script and term generation")
         for index, segment in enumerate(script_segments, 1):
             video_script = segment["script"]
-
+            logger.info(f"script segment: {index} => {video_script}")
             sub_final_video_paths, sub_combined_video_paths, sub_audio_file, sub_audio_duration, sub_subtitle_path, sub_downloaded_videos = step_3_to_step_6(
                 task_id, params, video_script, "", stop_at, index
             )
