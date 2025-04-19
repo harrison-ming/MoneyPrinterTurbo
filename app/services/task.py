@@ -259,7 +259,7 @@ def generate_final_videos(
         _progress += 50 / params.video_count / 2
         sm.state.update_task(task_id, progress=_progress)
 
-        final_video_path = path.join(utils.task_dir(task_id), f"final-{index}.mp4")
+        final_video_path = path.join(utils.task_dir(task_id), f"final-{index}-{nth}.mp4")
 
         logger.info(f"\n\n## generating video: {index} => {final_video_path}")
         video.generate_video(
