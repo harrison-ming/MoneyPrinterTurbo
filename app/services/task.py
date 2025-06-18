@@ -106,7 +106,7 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file, inde
         return ""
 
     subtitle_path = path.join(utils.task_dir(task_id), f"subtitle-{index}.srt")
-    subtitle_provider = config.app.get("subtitle_provider", "").strip().lower()
+    subtitle_provider = config.app.get("subtitle_provider", "edge").strip().lower()
     logger.info(f"\n\n## generating subtitle, provider: {subtitle_provider}")
 
     subtitle_fallback = False
@@ -330,7 +330,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=20)
 
         sub_final_video_paths, sub_combined_video_paths, sub_audio_file, sub_audio_duration, sub_subtitle_path, sub_downloaded_videos = step_3_to_step_6(
-            task_id, params, video_script, video_terms, stop_at, index=1
+            task_id, params, video_script, None, 0, video_terms, stop_at, index=1
         )
         final_video_paths.extend(sub_final_video_paths)
         combined_video_paths.extend(sub_combined_video_paths)
@@ -343,9 +343,11 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         logger.info(f"script segments exists, skipping script and term generation")
         for index, segment in enumerate(script_segments, 1):
             video_script = segment["script"]
+            pre_generated_audio_file = segment["audio_file"]
+            pre_generated_audio_duration = segment["audio_duration"]
             logger.info(f"script segment: {index} => {video_script}")
             sub_final_video_paths, sub_combined_video_paths, sub_audio_file, sub_audio_duration, sub_subtitle_path, sub_downloaded_videos = step_3_to_step_6(
-                task_id, params, video_script, "", stop_at, index
+                task_id, params, video_script, pre_generated_audio_file, pre_generated_audio_duration, "", stop_at, index
             )
 
             final_video_paths.extend(sub_final_video_paths)
@@ -452,7 +454,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
     return kwargs
 
 
-def step_3_to_step_6(task_id, params, video_script, video_terms, stop_at, index):
+def step_3_to_step_6(task_id, params, video_script, pre_generated_audio_file, pre_generated_audio_duration, video_terms, stop_at, index):
     # 3. Generate audio
     audio_file, audio_duration, sub_maker = generate_audio(
         task_id, params, video_script, index
@@ -487,6 +489,10 @@ def step_3_to_step_6(task_id, params, video_script, video_terms, stop_at, index)
         return {"subtitle_path": subtitle_path}
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=40)
+
+    if pre_generated_audio_file:
+        audio_file = pre_generated_audio_file
+        audio_duration = pre_generated_audio_duration
 
     # 5. Get video materials
     downloaded_videos = get_video_materials(
