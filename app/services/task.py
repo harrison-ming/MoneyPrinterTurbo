@@ -343,8 +343,8 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         logger.info(f"script segments exists, skipping script and term generation")
         for index, segment in enumerate(script_segments, 1):
             video_script = segment["script"]
-            pre_generated_audio_file = segment["audio_file"]
-            pre_generated_audio_duration = segment["audio_duration"]
+            pre_generated_audio_file = segment.get("audio_file", None)
+            pre_generated_audio_duration = segment.get("audio_duration", None)
             logger.info(f"script segment: {index} => {video_script}")
             sub_final_video_paths, sub_combined_video_paths, sub_audio_file, sub_audio_duration, sub_subtitle_path, sub_downloaded_videos = step_3_to_step_6(
                 task_id, params, video_script, pre_generated_audio_file, pre_generated_audio_duration, "", stop_at, index
@@ -490,7 +490,9 @@ def step_3_to_step_6(task_id, params, video_script, pre_generated_audio_file, pr
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=40)
 
-    if pre_generated_audio_file:
+    if pre_generated_audio_file is not None and pre_generated_audio_duration is not None:
+        logger.info(f"Using pre-generated audio file: {pre_generated_audio_file}")
+        # Use pre-generated audio file and duration
         audio_file = pre_generated_audio_file
         audio_duration = pre_generated_audio_duration
 
