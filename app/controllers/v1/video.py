@@ -2,9 +2,11 @@ import glob
 import os
 import pathlib
 import shutil
-from typing import Union
+from typing import List, Union
+import json
 
-from fastapi import BackgroundTasks, Depends, Path, Request, UploadFile
+from fastapi import BackgroundTasks, Depends, Path, Request, UploadFile, Form
+from fastapi.routing import APIRouter
 from fastapi.params import File
 from fastapi.responses import FileResponse, StreamingResponse
 from loguru import logger
@@ -52,34 +54,57 @@ else:
 
 
 @router.post("/videos", response_model=TaskResponse, summary="Generate a short video")
-def create_video(
-    background_tasks: BackgroundTasks, request: Request, body: TaskVideoRequest
+async def create_video(
+    background_tasks: BackgroundTasks, 
+    request: Request, 
+    body: str = Form(...),
+    audios: List[UploadFile] = File(...),
+    images: List[UploadFile] = File(...),
 ):
-    return create_task(request, body, stop_at="video")
+    data = TaskVideoRequest(**json.loads(body))
+    return await create_task(request, data, stop_at="video", audios=audios, images=images)
 
 
 @router.post("/subtitle", response_model=TaskResponse, summary="Generate subtitle only")
-def create_subtitle(
+async def create_subtitle(
     background_tasks: BackgroundTasks, request: Request, body: SubtitleRequest
 ):
-    return create_task(request, body, stop_at="subtitle")
+    return await create_task(request, body, stop_at="subtitle")
 
 
 @router.post("/audio", response_model=TaskResponse, summary="Generate audio only")
-def create_audio(
+async def create_audio(
     background_tasks: BackgroundTasks, request: Request, body: AudioRequest
 ):
-    return create_task(request, body, stop_at="audio")
+    return await create_task(request, body, stop_at="audio")
 
 
-def create_task(
+async def create_task(
     request: Request,
     body: Union[TaskVideoRequest, SubtitleRequest, AudioRequest],
     stop_at: str,
+    audios: List[UploadFile] = None,
+    images: List[UploadFile] = None,
 ):
     task_id = utils.get_uuid()
     request_id = base.get_task_id(request)
     try:
+        task_dir = utils.task_dir(task_id)
+        if isinstance(body, TaskVideoRequest):
+            script_segments = body.script_segments
+            if script_segments:
+                for index, segment in enumerate(script_segments, 1):
+                    logger.info(f"Processing segment {index}: {segment}")
+                    image_path = os.path.join(task_dir, images[index - 1].filename)
+                    with open(image_path, "wb") as f:
+                        f.write(await images[index - 1].read())
+                    segment.setdefault("url", image_path)
+
+                    audio_path = os.path.join(task_dir, audios[index - 1].filename)
+                    with open(audio_path, "wb") as f:
+                        f.write(await audios[index - 1].read())
+                    segment.setdefault("audio_file", audio_path)
+
         task = {
             "task_id": task_id,
             "request_id": request_id,
