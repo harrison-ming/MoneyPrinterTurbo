@@ -164,7 +164,9 @@ def get_video_materials(task_id, params, video_terms, audio_duration, index):
         params.video_materials = materials
         logger.info("\n\n## preprocess materials passed from script")
         materials = video.preprocess_video(
-            materials=params.video_materials, clip_duration=params.video_clip_duration
+            materials=params.video_materials, 
+            clip_duration=params.video_clip_duration,
+            image_to_video=script_segments[index - 1].get("image_to_video", True)
         )
         if not materials:
             sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
@@ -254,6 +256,7 @@ def generate_final_videos(
             video_transition_mode=video_transition_mode,
             max_clip_duration=params.video_clip_duration,
             threads=params.n_threads,
+            params=params,
         )
 
         _progress += 50 / params.video_count / 2

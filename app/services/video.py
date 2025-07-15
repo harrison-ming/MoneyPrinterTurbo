@@ -123,6 +123,8 @@ def combine_videos(
     video_transition_mode: VideoTransitionMode = None,
     max_clip_duration: int = 5,
     threads: int = 2,
+    params: VideoParams = None,
+    nth: int = 1,
 ) -> str:
     audio_clip = AudioFileClip(audio_file)
     audio_duration = audio_clip.duration
@@ -147,14 +149,22 @@ def combine_videos(
         close_clip(clip)
         
         start_time = 0
+        selected_end_time = clip_duration
+        script_segments = params.script_segments
+        if audio_duration < clip_duration and script_segments:
+            script_segment = script_segments[nth - 1]
+            if script_segment:
+                start_time = script_segment.get("start_time", 0)
+                selected_end_time = min(script_segment.get("end_time", clip_duration), start_time + audio_duration)
+                logger.info(f"using script segment: {script_segment}, start: {start_time}, end: {selected_end_time}")
 
-        while start_time < clip_duration:
+        while start_time < selected_end_time:
             end_time = min(start_time + max_clip_duration, clip_duration)            
             if clip_duration - start_time >= max_clip_duration:
                 subclipped_items.append(SubClippedVideoClip(file_path= video_path, start_time=start_time, end_time=end_time, width=clip_w, height=clip_h))
             start_time = end_time    
-            if video_concat_mode.value == VideoConcatMode.sequential.value:
-                break
+            # if video_concat_mode.value == VideoConcatMode.sequential.value:
+                # break
 
     # random subclipped_items order
     if video_concat_mode.value == VideoConcatMode.random.value:
@@ -485,7 +495,7 @@ def generate_video(
     del video_clip
 
 
-def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
+def preprocess_video(materials: List[MaterialInfo], clip_duration=4, image_to_video=True):
     for material in materials:
         if not material.url:
             continue
@@ -510,18 +520,23 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
                 .with_duration(clip_duration)
                 .with_position("center")
             )
-            # Apply a zoom effect using the resize method.
-            # A lambda function is used to make the zoom effect dynamic over time.
-            # The zoom effect starts from the original size and gradually scales up to 120%.
-            # t represents the current time, and clip.duration is the total duration of the clip (3 seconds).
-            # Note: 1 represents 100% size, so 1.2 represents 120% size.
-            zoom_clip = clip.resized(
-                lambda t: 1 + (clip_duration * 0.03) * (t / clip.duration)
-            )
 
-            # Optionally, create a composite video clip containing the zoomed clip.
-            # This is useful when you want to add other elements to the video.
-            final_clip = CompositeVideoClip([zoom_clip])
+            if image_to_video:
+                # Apply a zoom effect using the resize method.
+                # A lambda function is used to make the zoom effect dynamic over time.
+                # The zoom effect starts from the original size and gradually scales up to 120%.
+                # t represents the current time, and clip.duration is the total duration of the clip (3 seconds).
+                # Note: 1 represents 100% size, so 1.2 represents 120% size.
+                zoom_clip = clip.resized(
+                    lambda t: 1 + (clip_duration * 0.03) * (t / clip.duration)
+                )
+
+                # Optionally, create a composite video clip containing the zoomed clip.
+                # This is useful when you want to add other elements to the video.
+                final_clip = CompositeVideoClip([zoom_clip])
+            else:
+                # If image_to_video is False, we just use the original clip without zooming.
+                final_clip = CompositeVideoClip([clip])
 
             # Output the video to a file.
             video_file = f"{material.url}.mp4"
