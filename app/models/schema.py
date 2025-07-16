@@ -106,7 +106,7 @@ class VideoParams(BaseModel):
     language: str = "中文（简体）"
     segments: int = 3
     resolution: str = "1024*1024"
-    script_segments: list[dict[str, str]] = []
+    script_segments: list[dict[str, Any]] = []
 
 
 class SubtitleRequest(BaseModel):
