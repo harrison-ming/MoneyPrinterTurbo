@@ -174,7 +174,7 @@ def combine_videos(
     
     # Add downloaded clips over and over until the duration of the audio (max_duration) has been reached
     for i, subclipped_item in enumerate(subclipped_items):
-        if video_duration > audio_duration:
+        if video_duration >= audio_duration:
             break
         
         logger.debug(f"processing clip {i+1}: {subclipped_item.width}x{subclipped_item.height}, current duration: {video_duration:.2f}s, remaining: {audio_duration - video_duration:.2f}s")
@@ -241,16 +241,41 @@ def combine_videos(
             logger.error(f"failed to process clip: {str(e)}")
     
     # loop processed clips until the video duration matches or exceeds the audio duration.
-    if video_duration < audio_duration:
+    if video_duration > audio_duration:
+        logger.warning(f"video duration ({video_duration:.2f}s) exceeds audio duration ({audio_duration:.2f}s), trimming clips to match audio length.")
+        # Trim the last clip to match the audio duration
+        if processed_clips:
+            last_clip = processed_clips[-1]
+            if video_duration - last_clip.duration < audio_duration:
+                last_clip.start_time = 0
+                last_clip.end_time = audio_duration - video_duration
+                last_clip.duration = audio_duration - video_duration
+                logger.info(f"trimmed last clip to {last_clip.duration:.2f}s")
+    elif video_duration < audio_duration:
         logger.warning(f"video duration ({video_duration:.2f}s) is shorter than audio duration ({audio_duration:.2f}s), looping clips to match audio length.")
         base_clips = processed_clips.copy()
         for clip in itertools.cycle(base_clips):
             if video_duration >= audio_duration:
                 break
+            if video_duration + clip.duration >= audio_duration:
+                processed_clips.append(
+                    SubClippedVideoClip(
+                        file_path=clip.file_path,
+                        start_time=0,
+                        end_time=audio_duration - video_duration,
+                        width=clip.width,
+                        height=clip.height,
+                        duration=audio_duration - video_duration
+                    )
+                )
+                video_duration = audio_duration
+                logger.info(f"reached audio duration limit, breaking loop at {video_duration:.2f}s")
+                break
             processed_clips.append(clip)
             video_duration += clip.duration
         logger.info(f"video duration: {video_duration:.2f}s, audio duration: {audio_duration:.2f}s, looped {len(processed_clips)-len(base_clips)} clips")
-     
+    else:
+        logger.info(f"video duration ({video_duration:.2f}s) matches audio duration ({audio_duration:.2f}s), no looping required.")
     # merge video clips progressively, avoid loading all videos at once to avoid memory overflow
     logger.info("starting clip merging process")
     if not processed_clips:

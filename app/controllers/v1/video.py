@@ -59,10 +59,10 @@ async def create_video(
     request: Request, 
     body: str = Form(...),
     audios: List[UploadFile] = File(...),
-    images: List[UploadFile] = File(...),
+    medias: List[UploadFile] = File(...),
 ):
     data = TaskVideoRequest(**json.loads(body))
-    return await create_task(request, data, stop_at="video", audios=audios, images=images)
+    return await create_task(request, data, stop_at="video", audios=audios, medias=medias)
 
 
 @router.post("/subtitle", response_model=TaskResponse, summary="Generate subtitle only")
@@ -84,7 +84,7 @@ async def create_task(
     body: Union[TaskVideoRequest, SubtitleRequest, AudioRequest],
     stop_at: str,
     audios: List[UploadFile] = None,
-    images: List[UploadFile] = None,
+    medias: List[UploadFile] = None,
 ):
     task_id = utils.get_uuid()
     request_id = base.get_task_id(request)
@@ -95,10 +95,10 @@ async def create_task(
             if script_segments:
                 for index, segment in enumerate(script_segments, 1):
                     logger.info(f"Processing segment {index}: {segment}")
-                    image_path = os.path.join(task_dir, images[index - 1].filename)
-                    with open(image_path, "wb") as f:
-                        f.write(await images[index - 1].read())
-                    segment.setdefault("url", image_path)
+                    media_path = os.path.join(task_dir, medias[index - 1].filename)
+                    with open(media_path, "wb") as f:
+                        f.write(await medias[index - 1].read())
+                    segment.setdefault("url", media_path)
 
                     audio_path = os.path.join(task_dir, audios[index - 1].filename)
                     with open(audio_path, "wb") as f:
