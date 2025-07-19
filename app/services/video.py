@@ -4,6 +4,7 @@ import os
 import random
 import gc
 import shutil
+import subprocess
 from typing import List
 from loguru import logger
 from moviepy import (
@@ -287,17 +288,34 @@ def combine_videos(
     # if there is only one clip, use it directly
     if len(processed_clips) == 1:
         logger.info("using single clip directly")
-        clip = VideoFileClip(processed_clips[0].file_path).subclipped(0, processed_clips[0].duration)
-        clip.write_videofile(
-            filename=combined_video_path,
-            threads=threads,
-            logger=None,
-            temp_audiofile_path=output_dir,
-            audio_codec=audio_codec,
-            fps=fps,
-        )
+        # clip = VideoFileClip(processed_clips[0].file_path).subclipped(0, processed_clips[0].duration)
+        # clip.write_videofile(
+        #     filename=combined_video_path,
+        #     threads=threads,
+        #     logger=None,
+        #     temp_audiofile_path=output_dir,
+        #     audio_codec=audio_codec,
+        #     fps=fps,
+        # )
         # shutil.copy(processed_clips[0].file_path, combined_video_path)
-        close_clip(clip)
+        # close_clip(clip)
+        input_path = processed_clips[0].file_path
+        duration = processed_clips[0].duration  # in seconds
+        output_path = combined_video_path
+
+        subprocess.run([
+            "ffmpeg",
+            "-y",                      # overwrite output if it exists
+            "-ss", "0",                # start time
+            "-t", str(duration),       # duration
+            "-i", input_path,          # input file
+            "-r", str(fps),            # output FPS
+            "-c:v", "libx264",         # video codec
+            "-c:a", audio_codec,       # audio codec, e.g. "aac"
+            "-threads", str(threads),  # number of threads
+            "-preset", "fast",         # encoding speed (optional)
+            output_path
+        ])
         delete_files(processed_clips)
         logger.info("video combining completed")
         return combined_video_path
