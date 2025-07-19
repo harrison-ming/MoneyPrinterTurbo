@@ -230,7 +230,9 @@ def combine_videos(
                 
             # wirte clip to temp file
             clip_file = f"{output_dir}/temp-clip-{i+1}.mp4"
+            logger.info(f"writing clip {i+1} to {clip_file}, duration: {clip.duration:.2f}s, size: {clip_w}x{clip_h}")
             clip.write_videofile(clip_file, logger=None, fps=fps, codec=video_codec)
+            logger.info(f"clip {i+1} written to {clip_file}")
             
             close_clip(clip)
         
