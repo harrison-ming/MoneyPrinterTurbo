@@ -285,7 +285,17 @@ def combine_videos(
     # if there is only one clip, use it directly
     if len(processed_clips) == 1:
         logger.info("using single clip directly")
-        shutil.copy(processed_clips[0].file_path, combined_video_path)
+        clip = VideoFileClip(processed_clips[0].file_path).subclip(0, processed_clips[0].duration)
+        clip.write_videofile(
+            filename=combined_video_path,
+            threads=threads,
+            logger=None,
+            temp_audiofile_path=output_dir,
+            audio_codec=audio_codec,
+            fps=fps,
+        )
+        # shutil.copy(processed_clips[0].file_path, combined_video_path)
+        close_clip(clip)
         delete_files(processed_clips)
         logger.info("video combining completed")
         return combined_video_path
@@ -305,7 +315,10 @@ def combine_videos(
         try:
             # load current base video and next clip to merge
             base_clip = VideoFileClip(temp_merged_video)
-            next_clip = VideoFileClip(clip.file_path)
+            if i == len(processed_clips) - 1:
+                next_clip = VideoFileClip(clip.file_path).subclip(0, clip.duration)
+            else:
+                next_clip = VideoFileClip(clip.file_path)
             
             # merge these two clips
             merged_clip = concatenate_videoclips([base_clip, next_clip])
