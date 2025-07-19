@@ -363,17 +363,16 @@ def combine_videos(
     #     except Exception as e:
     #         logger.error(f"failed to merge clip: {str(e)}")
     #         continue
-    
 
-    for i, clip in enumerate(processed_clips[1:], 1):
-        logger.info(f"Merging clip {i}/{len(processed_clips) - 1}, duration: {clip.duration:.2f}s")
+    concat_list_path = os.path.join(output_dir, "concat_all.txt")
 
-        try:
-            next_input = clip.file_path
+    with open(concat_list_path, "w") as f:
+        for i, clip in enumerate(processed_clips):
+            clip_path = clip.file_path
 
-            # If it's the last clip, trim it from 0 to clip.duration using FFmpeg
-            if i == len(processed_clips) - 1:
-                trimmed_path = os.path.join(output_dir, f"trimmed_{i}.mp4")
+            # If it's the last clip and duration is set, trim it first
+            if i == len(processed_clips) - 1 and clip.duration is not None:
+                trimmed_path = os.path.join(output_dir, f"trimmed_last.mp4")
                 subprocess.run([
                     "ffmpeg", "-y",
                     "-ss", "0",
@@ -386,40 +385,29 @@ def combine_videos(
                     "-r", str(fps),
                     trimmed_path
                 ])
-                next_input = trimmed_path
+                clip_path = trimmed_path
 
-            # Create file list for concatenation
-            concat_list_path = os.path.join(output_dir, f"concat_{i}.txt")
-            with open(concat_list_path, "w") as f:
-                f.write(f"file '{os.path.abspath(temp_merged_video)}'\n")
-                f.write(f"file '{os.path.abspath(next_input)}'\n")
+            f.write(f"file '{os.path.abspath(clip_path)}'\n")
 
-            # Concatenate using ffmpeg
-            subprocess.run([
-                "ffmpeg", "-y",
-                "-f", "concat",
-                "-safe", "0",
-                "-i", concat_list_path,
-                "-c:v", "libx264",
-                "-c:a", audio_codec,
-                "-threads", str(threads),
-                "-preset", "fast",
-                "-r", str(fps),
-                temp_merged_next
-            ])
+    # Run ffmpeg to concatenate all at once
+    subprocess.run([
+    "ffmpeg", "-y",
+    "-f", "concat",
+    "-safe", "0",
+    "-i", concat_list_path,
+    "-c:v", "libx264",
+    "-c:a", audio_codec,
+    "-threads", str(threads),
+    "-preset", "fast",
+    "-r", str(fps),
+    combined_video_path
+    ])
 
-            # Replace base merged file with the new one
-            delete_files(temp_merged_video)
-            os.rename(temp_merged_next, temp_merged_video)
+    # Clean up
+    os.remove(concat_list_path)
+    if 'trimmed_path' in locals():
+        os.remove(trimmed_path)
 
-            # Clean up
-            os.remove(concat_list_path)
-            if i == len(processed_clips) - 1:
-                os.remove(trimmed_path)
-
-        except Exception as e:
-            logger.error(f"Failed to merge clip: {str(e)}")
-            continue
 
     # after merging, rename final result to target file name
     os.rename(temp_merged_video, combined_video_path)
