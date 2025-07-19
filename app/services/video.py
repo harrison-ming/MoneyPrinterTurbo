@@ -246,11 +246,10 @@ def combine_videos(
         # Trim the last clip to match the audio duration
         if processed_clips:
             last_clip = processed_clips[-1]
-            if video_duration - last_clip.duration < audio_duration:
-                last_clip.start_time = 0
-                last_clip.end_time = audio_duration - video_duration
-                last_clip.duration = audio_duration - video_duration
-                logger.info(f"trimmed last clip to {last_clip.duration:.2f}s")
+            last_clip.start_time = 0
+            last_clip.end_time = video_duration - audio_duration
+            last_clip.duration = video_duration - audio_duration
+            logger.info(f"trimmed last clip to {last_clip.duration:.2f}s")     
     elif video_duration < audio_duration:
         logger.warning(f"video duration ({video_duration:.2f}s) is shorter than audio duration ({audio_duration:.2f}s), looping clips to match audio length.")
         base_clips = processed_clips.copy()
