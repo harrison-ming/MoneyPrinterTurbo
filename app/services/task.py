@@ -403,6 +403,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
 
         # Update final paths list
         final_video_paths = [combined_final_video_path]
+        logger.info(f"Final combined video saved to: {combined_final_video_path}")
 
 
     # # 3. Generate audio
