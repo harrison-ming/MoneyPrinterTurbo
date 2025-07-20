@@ -387,6 +387,7 @@ def combine_videos(
                 ])
                 clip_path = trimmed_path
 
+            logger.info(f"adding clip {i+1}/{len(processed_clips)}: {clip_path}, duration: {clip.duration:.2f}s")
             f.write(f"file '{os.path.abspath(clip_path)}'\n")
 
     # Run ffmpeg to concatenate all at once
@@ -410,7 +411,7 @@ def combine_videos(
 
 
     # after merging, rename final result to target file name
-    os.rename(temp_merged_video, combined_video_path)
+    # os.rename(temp_merged_video, combined_video_path)
     
     # clean temp files
     clip_files = [clip.file_path for clip in processed_clips]
