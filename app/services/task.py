@@ -379,7 +379,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         logger.info("combining final videos into one")
 
         # Create concat list file
-        concat_list_path = os.path.join(output_dir, "concat_final.txt")
+        concat_list_path = os.path.join(utils.task_dir(task_id), "concat_final.txt")
         with open(concat_list_path, "w") as f:
             for path in final_video_paths:
                 f.write(f"file '{os.path.abspath(path)}'\n")
