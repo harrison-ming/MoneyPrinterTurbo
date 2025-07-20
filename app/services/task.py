@@ -257,6 +257,7 @@ def generate_final_videos(
             max_clip_duration=params.video_clip_duration,
             threads=params.n_threads,
             params=params,
+            nth=nth,
         )
 
         _progress += 50 / params.video_count / 2
@@ -361,18 +362,47 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
             downloaded_videos.extend(sub_downloaded_videos)
             video_scripts.append(video_script)
 
+        # logger.info("combining final videos into one")
+        # clips = [VideoFileClip(path) for path in final_video_paths]
+
+        # # Concatenate the clips
+        # final_clip = concatenate_videoclips(clips)
+
+        # # Export the final video
+        # combined_final_video_path = path.join(
+        #     utils.task_dir(task_id), f"combined_final_video.mp4"
+        # )
+        # final_clip.write_videofile(combined_final_video_path, codec="libx264", audio_codec="aac")
+        # final_video_paths = [combined_final_video_path]
+        
+
         logger.info("combining final videos into one")
-        clips = [VideoFileClip(path) for path in final_video_paths]
 
-        # Concatenate the clips
-        final_clip = concatenate_videoclips(clips)
+        # Create concat list file
+        concat_list_path = os.path.join(output_dir, "concat_final.txt")
+        with open(concat_list_path, "w") as f:
+            for path in final_video_paths:
+                f.write(f"file '{os.path.abspath(path)}'\n")
 
-        # Export the final video
-        combined_final_video_path = path.join(
-            utils.task_dir(task_id), f"combined_final_video.mp4"
-        )
-        final_clip.write_videofile(combined_final_video_path, codec="libx264", audio_codec="aac")
+        # Final output path
+        combined_final_video_path = os.path.join(utils.task_dir(task_id), "combined_final_video.mp4")
+
+        # FFmpeg concat without re-encoding
+        subprocess.run([
+            "ffmpeg", "-y",
+            "-f", "concat",
+            "-safe", "0",
+            "-i", concat_list_path,
+            "-c", "copy",
+            combined_final_video_path
+        ])
+
+        # Clean up
+        os.remove(concat_list_path)
+
+        # Update final paths list
         final_video_paths = [combined_final_video_path]
+
 
     # # 3. Generate audio
     # audio_file, audio_duration, sub_maker = generate_audio(
