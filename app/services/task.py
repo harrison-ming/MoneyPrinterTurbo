@@ -242,12 +242,16 @@ def generate_final_videos(
     video_transition_mode = params.video_transition_mode
 
     _progress = 50
-    for i in range(params.video_count):
-        index = i + 1
+    
+    # Check if we're in script_segments mode
+    script_segments = params.script_segments if params else None
+    if script_segments:
+        # In script_segments mode, generate only one video per segment (no video_count loop)
+        logger.info(f"script_segments mode: generating single video for segment {nth}")
         combined_video_path = path.join(
-            utils.task_dir(task_id), f"combined-{index}-{nth}.mp4"
+            utils.task_dir(task_id), f"combined-1-{nth}.mp4"
         )
-        logger.info(f"\n\n## combining video: {index} => {combined_video_path}")
+        logger.info(f"\n\n## combining video for segment {nth} => {combined_video_path}")
         video.combine_videos(
             combined_video_path=combined_video_path,
             video_paths=downloaded_videos,
@@ -260,13 +264,13 @@ def generate_final_videos(
             params=params,
             nth=nth,
         )
-
-        _progress += 50 / params.video_count / 2
+        
+        _progress += 25
         sm.state.update_task(task_id, progress=_progress)
 
-        final_video_path = path.join(utils.task_dir(task_id), f"final-{index}-{nth}.mp4")
+        final_video_path = path.join(utils.task_dir(task_id), f"final-1-{nth}.mp4")
 
-        logger.info(f"\n\n## generating video: {index} => {final_video_path}")
+        logger.info(f"\n\n## generating video for segment {nth} => {final_video_path}")
         video.generate_video(
             video_path=combined_video_path,
             audio_path=audio_file,
@@ -275,11 +279,51 @@ def generate_final_videos(
             params=params,
         )
 
-        _progress += 50 / params.video_count / 2
+        _progress += 25
         sm.state.update_task(task_id, progress=_progress)
 
         final_video_paths.append(final_video_path)
         combined_video_paths.append(combined_video_path)
+    else:
+        # Original logic: generate multiple video variants
+        for i in range(params.video_count):
+            index = i + 1
+            combined_video_path = path.join(
+                utils.task_dir(task_id), f"combined-{index}-{nth}.mp4"
+            )
+            logger.info(f"\n\n## combining video: {index} => {combined_video_path}")
+            video.combine_videos(
+                combined_video_path=combined_video_path,
+                video_paths=downloaded_videos,
+                audio_file=audio_file,
+                video_aspect=params.video_aspect,
+                video_concat_mode=video_concat_mode,
+                video_transition_mode=video_transition_mode,
+                max_clip_duration=params.video_clip_duration,
+                threads=params.n_threads,
+                params=params,
+                nth=nth,
+            )
+
+            _progress += 50 / params.video_count / 2
+            sm.state.update_task(task_id, progress=_progress)
+
+            final_video_path = path.join(utils.task_dir(task_id), f"final-{index}-{nth}.mp4")
+
+            logger.info(f"\n\n## generating video: {index} => {final_video_path}")
+            video.generate_video(
+                video_path=combined_video_path,
+                audio_path=audio_file,
+                subtitle_path=subtitle_path,
+                output_file=final_video_path,
+                params=params,
+            )
+
+            _progress += 50 / params.video_count / 2
+            sm.state.update_task(task_id, progress=_progress)
+
+            final_video_paths.append(final_video_path)
+            combined_video_paths.append(combined_video_path)
 
     return final_video_paths, combined_video_paths
 
