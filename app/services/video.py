@@ -208,7 +208,7 @@ def combine_videos(
 
         start_time = 0
         selected_end_time = clip_duration
-        script_segments = params.script_segments
+        script_segments = params.script_segments if params else None
         if audio_duration < clip_duration and script_segments:
             script_segment = script_segments[nth - 1]
             if script_segment:
