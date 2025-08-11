@@ -1,7 +1,9 @@
 import math
+import os
 import os.path
 import re
 import requests
+import shutil
 import subprocess
 from os import path
 
@@ -102,9 +104,18 @@ def generate_audio(task_id, params, video_script, index):
     return audio_file, audio_duration, sub_maker
 
 
-def generate_subtitle(task_id, params, video_script, sub_maker, audio_file, index):
+def generate_subtitle(task_id, params, video_script, sub_maker, audio_file, index, segment=None):
     if not params.subtitle_enabled:
         return ""
+
+    # 优先使用外部字幕（如MiniMax生成的字幕）
+    if segment and segment.get("subtitle_file"):
+        external_subtitle_path = segment["subtitle_file"]
+        if os.path.exists(external_subtitle_path):
+            subtitle_path = path.join(utils.task_dir(task_id), f"subtitle-{index}.srt")
+            shutil.copy2(external_subtitle_path, subtitle_path)
+            logger.info(f"使用外部字幕文件: {external_subtitle_path} -> {subtitle_path}")
+            return subtitle_path
 
     subtitle_path = path.join(utils.task_dir(task_id), f"subtitle-{index}.srt")
     subtitle_provider = config.app.get("subtitle_provider", "edge").strip().lower()
@@ -554,8 +565,13 @@ def step_3_to_step_6(task_id, params, video_script, pre_generated_audio_file, pr
         return {"audio_file": audio_file, "audio_duration": audio_duration}
 
     # 4. Generate subtitle
+    # 获取当前segment信息（用于外部字幕）
+    current_segment = None
+    if hasattr(params, 'script_segments') and params.script_segments and len(params.script_segments) >= index:
+        current_segment = params.script_segments[index - 1]
+    
     subtitle_path = generate_subtitle(
-        task_id, params, video_script, sub_maker, audio_file, index
+        task_id, params, video_script, sub_maker, audio_file, index, current_segment
     )
 
     if stop_at == "subtitle":
